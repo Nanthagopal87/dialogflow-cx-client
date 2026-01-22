@@ -300,3 +300,17 @@ curl -k -X POST https://10.0.0.9/api/message \
 5. [ ] **HTTPRoute updated** to route `/api` to the client app.
 
 How did the deployment go? Any new logs or errors?
+
+
+###
+
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+
+gcloud artifacts docker images list us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/[YOUR_REPO_NAME]
+
+gcloud artifacts docker images list us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/my-repo
+
+docker pull us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/my-repo/df-cx-client:v1
+
+docker pull us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/my-repo/df-cx-client:v1
