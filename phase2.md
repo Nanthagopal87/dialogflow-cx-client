@@ -156,3 +156,147 @@ gcloud builds submit --tag us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717
 # 2. Push to Google Cloud Artifact Registry
 docker push [REGION]-docker.pkg.dev/[PROJECT_ID]/[REPO_NAME]/df-cx-client:v1
 docker push us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/my-repo/df-cx-client:v1
+
+
+### 
+
+Great news! Now that the image is built, you are ready for the final stretch: **Pushing the image to the registry** and **Deploying to GKE**.
+
+Here are the remaining steps to get your Phase 2 live:
+
+### 1. Push the Image to Artifact Registry
+You need to move that local image to Google Cloud so GKE can pull it.
+
+```bash
+# 1. Authenticate Docker to Google Cloud (if not already done)
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# 2. Tag your image (replace [REPO_NAME] with your actual repo name)
+docker tag [LOCAL_IMAGE_NAME] us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/[REPO_NAME]/df-cx-client:v1
+
+# 3. Push it
+docker push us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/[REPO_NAME]/df-cx-client:v1
+```
+
+---
+
+### 2. Final Deployment YAML
+Create a file named `df-cx-client-deployment.yaml`. 
+
+**Note:** Since your Gateway is `gke-l7-rilb` (Internal Load Balancer), it will be accessible at your internal IP `10.0.0.9`.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: client-chat
+  template:
+    metadata:
+      labels:
+        app: client-chat
+    spec:
+      serviceAccountName: client-app-ksa # Must match the KSA you created
+      containers:
+      - name: node-app
+        image: us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/[REPO_NAME]/df-cx-client:v1
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PROJECT_ID
+          value: "prj-gdg-ai-meetup-20250717-1"
+        - name: LOCATION
+          value: "us-central1"
+        - name: AGENT_ID
+          value: "YOUR_AGENT_UUID" # Ensure this is your actual UUID
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-backend-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: client-chat
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: webhook-route # We update the existing route
+spec:
+  parentRefs:
+  - name: internal-https-gateway
+  rules:
+  # Rule 1: Dialogflow Client API
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    backendRefs:
+    - name: client-backend-svc
+      port: 80
+  # Rule 2: Webhook logic (Default)
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: webhook-backend-svc
+      port: 8080
+```
+
+---
+
+### 3. Apply and Verify
+Apply the configuration:
+```bash
+kubectl apply -f df-cx-client-deployment.yaml
+```
+
+**Check if pods are running:**
+```bash
+kubectl get pods -l app=client-chat
+```
+
+**Check Workload Identity (The most common point of failure):**
+If the pods crash or show `PERMISSION_DENIED` in the logs, verify the KSA is linked correctly:
+```bash
+# This should show the 'iam.gke.io/gcp-service-account' annotation
+kubectl describe sa client-app-ksa
+```
+
+---
+
+### 4. How to Test (Internal Gateway)
+Since you are using a **Regional Internal Load Balancer** (`gke-l7-rilb`), you **cannot** access this URL from your public browser. You must test it from a VM or another Pod *within the same VPC*.
+
+**To test from inside the cluster:**
+```bash
+# Start a temporary testing pod
+kubectl run curl-test --image=curlimages/curl -it --rm --restart=Never -- /bin/sh
+
+# Once inside the shell, run the curl command against the Gateway IP
+curl -k -X POST https://10.0.0.9/api/message \
+-H "Content-Type: application/json" \
+-d '{
+  "text": "demo"
+}'
+```
+
+*(The `-k` flag is used because your `webhook-server-tls` is likely using a self-signed or internal certificate.)*
+
+### Summary Checklist:
+1. [ ] **Image Pushed** to Artifact Registry.
+2. [ ] **Workload Identity enabled** on Cluster/Node Pool.
+3. [ ] **IAM Binding** done (`df-cx-client-sa` <-> `client-app-ksa`).
+4. [ ] **Deployment applied** with correct `serviceAccountName`.
+5. [ ] **HTTPRoute updated** to route `/api` to the client app.
+
+How did the deployment go? Any new logs or errors?
