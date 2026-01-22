@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: client-chat
+  template:
+    metadata:
+      labels:
+        app: client-chat
+    spec:
+      serviceAccountName: client-app-ksa # Link to the IAM binding above
+      containers:
+      - name: node-app
+        # Use your Artifact Registry image built from the Dockerfile
+        image: us-central1-docker.pkg.dev/prj-gdg-ai-meetup-20250717-1/my-repo/df-cx-client:v1 
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PROJECT_ID
+          value: "prj-gdg-ai-meetup-20250717-1"
+        - name: LOCATION
+          value: "us-central1"
+        - name: AGENT_ID
+          value: "ff828298-ec0c-4df7-af34-d051b9274237"

@@ -238,3 +238,14 @@ Post Adding we are getting successfull response
 
 Response:
 {"sessionId":"608c4e57-69ff-4bce-b542-18fcce2f572c","responses":["Hello from your Express webhook! You're on page \"Start Page\". The fulfillment tag \"demo\" was triggered. No specific parameters were provided."],"intent":"demo","currentPage":"Start Page","parameters":null}
+
+
+### Git Setup
+
+git init
+git remote add origin https://github.com/Nanthagopal87/dialogflow-cx-client.git
+git add .
+git commit -m "first commit"
+git branch -M master
+git push -u origin master
+
